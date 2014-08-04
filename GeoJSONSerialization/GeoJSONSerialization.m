@@ -108,8 +108,13 @@ static MKPolygon * MKPolygonFromGeoJSONPolygonFeature(NSDictionary *feature) {
             break;
         default: {
             MKPolygon *exteriorPolygon = [mutablePolygons firstObject];
+#ifdef TARGET_OS_MAC
+            NSArray *interiorPolygons = [mutablePolygons subarrayWithRange:NSMakeRange(1, [mutablePolygons count] - 1)];
+            polygon = [MKPolygon polygonWithCoordinates:[exteriorPolygon coordinates] count:exteriorPolygon.coordinateCount interiorPolygons:interiorPolygons];
+#else
             NSArray *interiorPolygons = [mutablePolygons subarrayWithRange:NSMakeRange(1, [mutablePolygons count] - 1)];
             polygon = [MKPolygon polygonWithPoints:exteriorPolygon.points count:exteriorPolygon.pointCount interiorPolygons:interiorPolygons];
+#endif
         }
             break;
     }
@@ -264,8 +269,16 @@ static NSDictionary * GeoJSONPointFeatureGeometryFromPointAnnotation(MKPointAnno
 }
 
 static NSDictionary * GeoJSONLineStringFeatureGeometryFromPolyline(MKPolyline *polyline) {
-    NSMutableArray *mutableCoordinatePairs = [NSMutableArray arrayWithCapacity:[polyline pointCount]];
-    for (NSUInteger idx = 0; idx < [polyline pointCount]; idx++) {
+
+    NSUInteger pointCount;
+#ifdef TARGET_OS_MAC
+    pointCount = [polyline coordinateCount];
+#else
+    pointCount = [polyline pointCount];
+#endif
+
+    NSMutableArray *mutableCoordinatePairs = [NSMutableArray arrayWithCapacity:pointCount];
+    for (NSUInteger idx = 0; idx < pointCount; idx++) {
         CLLocationCoordinate2D coordinate;
         [polyline getCoordinates:&coordinate range:NSMakeRange(idx, 1)];
         [mutableCoordinatePairs addObject:@[@(coordinate.longitude), @(coordinate.latitude)]];
@@ -284,13 +297,20 @@ static NSDictionary * GeoJSONPolygonFeatureGeometryFromPolygon(MKPolygon *polygo
     if ([polygon.interiorPolygons count] > 0) {
         [mutablePolygons addObjectsFromArray:polygon.interiorPolygons];
     }
-
+    
     for (MKPolygon *interiorOrExteriorPolygon in mutablePolygons) {
-        NSMutableArray *mutableCoordinatePairs = [NSMutableArray arrayWithCapacity:[interiorOrExteriorPolygon pointCount]];
-        for (NSUInteger idx = 0; idx < [interiorOrExteriorPolygon pointCount]; idx++) {
+        
+        NSUInteger pointCount;
+#ifdef TARGET_OS_MAC
+        pointCount = [interiorOrExteriorPolygon coordinateCount];
+#else
+        pointCount = [interiorOrExteriorPolygon pointCount]
+#endif
+        NSMutableArray *mutableCoordinatePairs = [NSMutableArray arrayWithCapacity:pointCount];
+        for (NSUInteger idx = 0; idx < pointCount; idx++) {
             CLLocationCoordinate2D coordinate;
             [interiorOrExteriorPolygon getCoordinates:&coordinate range:NSMakeRange(idx, 1)];
-            [mutableCoordinatePairs addObject:@[@(coordinate.longitude), @(coordinate.latitude)]];
+            [mutableCoordinatePairs setObject: @[@(coordinate.longitude), @(coordinate.latitude)] atIndexedSubscript:idx];
         }
 
         [mutableCoordinateSets addObject:mutableCoordinatePairs];
